@@ -34,8 +34,8 @@ func median(x []int64) int64 {
 
 func percentile(x []int64, perc float64) int64 {
 	val := int(perc * float64(len(x)))
-	if len(x) >= val || 0 >= val {
-		log.Fatalln("Error, percentile should be smaller than 1 and bigger than 0.")
+	if len(x) <= val || 0 >= val {
+		log.Fatalln("Error, percentile should be smaller than 1 and bigger than 0. Got:\n", val, len(x), perc)
 	}
 	sort.Sort(Int64ToSort(x))
 	return x[val]
