@@ -55,7 +55,7 @@ func prepare_inputs() (input_data [][]byte, classes []int) {
 		if classes[i] == 0 {
 			input_data[i] = data
 		} else {
-			input_data[i] = data
+			input_data[i] = data[1:]
 		}
 
 	}
