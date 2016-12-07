@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	_ "math"
+	"math/big"
 	"sort"
 )
 
@@ -39,4 +40,13 @@ func percentile(x []int64, perc float64) int64 {
 	}
 	sort.Sort(Int64ToSort(x))
 	return x[val]
+}
+
+// fromBase16 returns a new Big.Int from an hexadecimal string, as found in the go crypto tests suite
+func fromBase16(base16 string) *big.Int {
+	i, ok := new(big.Int).SetString(base16, 16)
+	if !ok {
+		panic("bad number: " + base16)
+	}
+	return i
 }

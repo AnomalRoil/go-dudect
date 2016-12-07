@@ -1,11 +1,9 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"math"
-	mrand "math/rand"
 	"time"
 )
 
@@ -16,13 +14,13 @@ type t_ctx struct {
 }
 
 const chunck_size = 16
-const number_measurements = 10000
+const number_measurements = 2000
 
 const t_threshold_bananas = 500 // test failed, with overwhelming probability
 const t_threshold_moderate = 10
 
 const number_percentiles = 100
-const enough_measurements = 10000 // may be handled by the Go benchmark package later
+const enough_measurements = 2000 // may be handled by the Go benchmark package later
 const number_tests = 1 + number_percentiles + 1
 
 var percentiles [number_percentiles]int64
@@ -35,15 +33,14 @@ func prepare_percentiles(ticks []int64) {
 	}
 }
 
-func measure(ticks []int64, input_data [][]byte) {
+func measure(ticks []int64, input_data [][]byte, exec_times []int64) {
 	for i := 0; i < number_measurements; i++ {
 		ticks[i] = time.Now().UnixNano()
 		do_one_computation(input_data[i])
 	}
-	ticks[number_measurements] = time.Now().UnixNano()
-}
 
-func differentiate(exec_times []int64, ticks []int64) {
+	ticks[number_measurements] = time.Now().UnixNano()
+
 	for i := 0; i < number_measurements; i++ {
 		exec_times[i] = ticks[i+1] - ticks[i]
 	}
@@ -54,7 +51,6 @@ func update_statistics(exec_times []int64, classes []int) {
 	for i := 0; i < number_measurements; i++ {
 
 		difference := exec_times[i]
-
 		if difference < 0 {
 			continue // the cpu cycle counter overflowed
 		}
@@ -88,6 +84,7 @@ func t_push(ctx *t_ctx, x float64, class int) {
 	// see Knuth Vol 2
 	var delta float64
 	delta = x - ctx.mean[class]
+	// so we have a/n +(x-a/n)/(n+1) = ((n+1)a + nx-a)/(n(n+1)) = (a+x)/(n+1)
 	ctx.mean[class] = ctx.mean[class] + delta/ctx.n[class]
 	ctx.m2[class] = ctx.m2[class] + delta*(x-ctx.mean[class])
 }
@@ -205,8 +202,7 @@ func doit() {
 	input_data := make([][]byte, number_measurements)
 
 	prepare_inputs(input_data, classes)
-	measure(ticks, input_data)
-	differentiate(exec_times, ticks) // inplace
+	measure(ticks, input_data, exec_times)
 
 	if percentiles[number_percentiles-1] == 0 {
 		prepare_percentiles(exec_times)
@@ -227,46 +223,4 @@ func main() {
 		doit()
 	}
 
-}
-
-// leftPadConst returns a new slice of length size. The contents of input are right
-// aligned in the new slice, using the old Copy implementation
-func leftPad(input []byte, size int) (out []byte) {
-	n := len(input)
-	if n > size {
-		n = size
-	}
-	out = make([]byte, size)
-	copy(out[size-n:], input)
-	return
-}
-
-func prepare_inputs(input_data [][]byte, classes []int) {
-	rn := mrand.New(mrand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < number_measurements; i++ {
-		classes[i] = rn.Intn(2)
-		data := make([]byte, 256)
-		_, err := rand.Read(data)
-		//data, err := hex.DecodeString("73e4952b02c526cccb40bc093f56a9e9065f366e7778de49fadaa91427526377af02f1bb5201e90a9a79bf82a03936f7dce806637b1114d395c14d718d95b909d5292475e79c01b1f7695f0d83ff15a1da819dca0f14e2bb2bb093b24c4364be13f9b65bf2943e1f8f5c2d493f6418e09e645f26c935bd2132ef928179e5e411a26038f78b1defc16b65c96e975cf03ab7e4be3dc0481f2dd4a047ab53f2edaddb13739ad98829bdbc58b520fb227246e5e8e34678d7fe5dcaf0835403e1f0dfb9d49956d9efcfd4afe8e1ba38609557c0e5a8acef75575cc575dc8c053a00e7f22bf077df6ab27a7cb47afd47f6f8ecb14f032ac42d06e705387707817340ba")
-		if err != nil {
-			fmt.Println("error:", err)
-			panic("err")
-		}
-		if classes[i] == 0 {
-			input_data[i] = data
-		} else {
-			input_data[i] = data
-		}
-
-	}
-	return
-}
-
-func do_one_computation(data []byte) {
-	size := len(data)
-	if len(data) != 256 {
-		size = 256
-	}
-	out := leftPad(data, size)
-	out[0] = 0
 }
