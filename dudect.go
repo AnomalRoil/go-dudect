@@ -1,3 +1,4 @@
+// All credit goes to Oscar Reparaz, Josep Balasch and Ingrid Verbauwhede for dudect's ideas and design
 package main
 
 import (
@@ -14,14 +15,14 @@ type t_ctx struct {
 }
 
 const chunck_size = 16
-const number_measurements = 2000
+const number_measurements = 3000
+const enough_measurements = 3000 // may be handled by the Go benchmark package later
 
 const t_threshold_bananas = 500 // test failed, with overwhelming probability
-const t_threshold_moderate = 10
+const t_threshold_moderate = 5  // here we could also take 4.5 e.g.
 
 const number_percentiles = 100
-const enough_measurements = 2000 // may be handled by the Go benchmark package later
-const number_tests = 1 + number_percentiles + 1
+const number_tests = 1 + number_percentiles + 1 // we perform 1
 
 var percentiles [number_percentiles]int64
 var tests [number_tests]t_ctx
@@ -33,23 +34,24 @@ func prepare_percentiles(ticks []int64) {
 	}
 }
 
-func measure(ticks []int64, input_data [][]byte, exec_times []int64) {
+func measure(input_data [][]byte) (exec_times []int64) {
+	ticks := make([]int64, number_measurements+1)
 	for i := 0; i < number_measurements; i++ {
 		ticks[i] = time.Now().UnixNano()
 		do_one_computation(input_data[i])
 	}
 
 	ticks[number_measurements] = time.Now().UnixNano()
-
+	exec_times = make([]int64, number_measurements)
 	for i := 0; i < number_measurements; i++ {
 		exec_times[i] = ticks[i+1] - ticks[i]
 	}
+	return
 }
 
 func update_statistics(exec_times []int64, classes []int) {
 
 	for i := 0; i < number_measurements; i++ {
-
 		difference := exec_times[i]
 		if difference < 0 {
 			continue // the cpu cycle counter overflowed
@@ -85,8 +87,9 @@ func t_push(ctx *t_ctx, x float64, class int) {
 	var delta float64
 	delta = x - ctx.mean[class]
 	// so we have a/n +(x-a/n)/(n+1) = ((n+1)a + nx-a)/(n(n+1)) = (a+x)/(n+1)
-	ctx.mean[class] = ctx.mean[class] + delta/ctx.n[class]
-	ctx.m2[class] = ctx.m2[class] + delta*(x-ctx.mean[class])
+	ctx.mean[class] += delta / ctx.n[class]
+	ctx.m2[class] += delta * (x - ctx.mean[class])
+	// the algorithm is finalized in t_compute
 }
 
 func wrap_report(x *t_ctx) {
@@ -103,6 +106,7 @@ func t_compute(ctx *t_ctx) float64 {
 	vars := [2]float64{0.0, 0.0}
 	var den, t_value, num float64
 
+	// we divide by n-1 since to finalize the variance computation.
 	vars[0] = ctx.m2[0] / (ctx.n[0] - 1)
 	vars[1] = ctx.m2[1] / (ctx.n[1] - 1)
 	num = (ctx.mean[0] - ctx.mean[1])
@@ -112,15 +116,7 @@ func t_compute(ctx *t_ctx) float64 {
 	return t_value
 }
 
-func t_init(ctx *t_ctx) {
-	for class := 0; class < 2; class++ {
-		ctx.mean[class] = 0.0
-		ctx.m2[class] = 0.0
-		ctx.n[class] = 0.0
-	}
-	return
-}
-
+// max_test returns the index of the test with the greateast t-value
 func max_test() int {
 	ret := 0
 	var max float64
@@ -196,30 +192,21 @@ func report() {
 }
 
 func doit() {
-	ticks := make([]int64, number_measurements+1)
-	exec_times := make([]int64, number_measurements)
-	classes := make([]int, number_measurements)
-	input_data := make([][]byte, number_measurements)
+	input_data, classes := prepare_inputs()
+	exec_times := measure(input_data)
 
-	prepare_inputs(input_data, classes)
-	measure(ticks, input_data, exec_times)
-
+	// on the very first run, let's compute the rough esitmate of the percentiles:
 	if percentiles[number_percentiles-1] == 0 {
 		prepare_percentiles(exec_times)
-	} else {
-		update_statistics(exec_times, classes)
-		report()
 	}
+	update_statistics(exec_times, classes)
+	report()
 }
 
 func main() {
 	fmt.Println("dudect start")
 
-	for i := 0; i < number_tests; i++ {
-		t_init(&tests[i])
-	}
-
-	for true {
+	for {
 		doit()
 	}
 

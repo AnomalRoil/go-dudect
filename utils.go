@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	_ "math"
 	"math/big"
 	"sort"
 )
@@ -16,21 +15,6 @@ func (s Int64ToSort) Less(i, j int) bool { return s[i] < s[j] }
 
 func (s Int64ToSort) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
-}
-
-func mean(x []int64) float64 {
-	var m float64
-	for _, v := range x {
-		m += float64(v)
-	}
-	m = m / float64(len(x))
-	return m
-}
-
-func median(x []int64) int64 {
-	sort.Sort(Int64ToSort(x))
-	m := (len(x) + 1) / 2
-	return x[m]
 }
 
 func percentile(x []int64, perc float64) int64 {
